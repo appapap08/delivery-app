@@ -35,11 +35,10 @@ app.use(bodyParser.json());
 // app.use(express.static(path.join(__dirname, '../front-end')));
 // res.sendFile(path.join(__dirname, '../front-end/index.html'));
 
-// updated paths
-const uploadDir = path.join(__dirname, 'myApp/www/uploads');
-app.use(express.static(path.join(__dirname, 'myApp/www')));
-res.sendFile(path.join(__dirname, 'myApp/www/index.html'));
-
+// Serve your frontend index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'myApp/www/index.html'));
+});
 
 // Ensure uploads folder exists
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
