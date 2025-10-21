@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Delivery App - Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #ff7b00, #ff9500);
+    margin:0;
+    padding:0;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    min-height:100vh;
+    padding-top:30px;
+  }
+  .container {
+    width:95%;
+    max-width:1100px;
+    background: rgba(255,255,255,0.95);
+    border-radius:20px;
+    padding:40px 40px 60px 40px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.2);
+  }
+  h2,h3{color:#ff7b00;}
+  input, select, button {
+    width:100%;
+    padding:10px;
+    margin:6px 0;
+    border-radius:8px;
+    border:1px solid #ffcc80;
+    box-sizing:border-box;
+  }
+  button {
+    background:#ff7b00;
+    color:#fff;
+    font-weight:600;
+    cursor:pointer;
+    transition:0.3s;
+  }
+  button:hover { background:#ff9500; }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:12px;
+    table-layout: fixed;
+    word-wrap: break-word;
+  }
+  th,td{
+    border:1px solid #ffcc80;
+    padding:10px;
+    text-align:center;
+  }
+  th{
+    background:#ffb74d;
+    color:#fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Login -->
+  <div id="loginDiv">
+    <h2>Admin Login</h2>
+    <input id="username" placeholder="Username" />
+    <input id="password" type="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" style="display:none;">
+    <h2>Admin Dashboard</h2>
+    <button onclick="logout()">Logout</button>
+
+    <h3>Add Rider</h3>
+    <input id="riderName" placeholder="Name" />
+    <input id="riderPhone" placeholder="Phone" />
+    <input id="riderUsername" placeholder="Username" />
+    <input id="riderPassword" placeholder="Password" />
+    <button onclick="addRider()">Add Rider</button>
+
+    <h3>Manual Order</h3>
+    <input id="custName" placeholder="Customer Name" />
+    <input id="custPhone" placeholder="Customer Phone" />
+    <input id="pickup" placeholder="Pickup Location" />
+    <input id="dropoff" placeholder="Dropoff Location" />
+    <input id="distance" placeholder="Distance (km)" type="number" />
+    <input id="fee" placeholder="Delivery Fee (PHP)" type="number" />
+    <select id="assignRider">
+      <option value="">-- Optional: Assign Rider --</option>
+    </select>
+    <button onclick="createOrder()">Create Order</button>
+
+    <h3>Riders</h3>
+    <table id="ridersTable"></table>
+
+    <h3>Incoming Orders (Pending/Accepted)</h3>
+    <table id="incomingOrdersTable"></table>
+
+    <h3>Order History (Completed/Cancelled)</h3>
+    <table id="historyOrdersTable"></table>
+  </div>
+</div>
+
+<script>
+const API = "https://kabalen-backend1.onrender.com";
+ // <-- replace 192.168.100.8 with your IPv4
+let token = localStorage.getItem('adminToken') || '';
+
+// ---------- Helpers ----------
+function authHeaders(){ return {'Authorization': 'Bearer ' + token, 'Content-Type':'application/json'}; }
+function show(id){ document.getElementById(id).style.display='block'; }
+function hide(id){ document.getElementById(id).style.display='none'; }
+function escapeHtml(str){return String(str||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+// ---------- Login ----------
+async function login(){
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    if(!username || !password) return alert('Enter username + password');
+
+    try {
+        const res = await fetch(`${API}/admin/login`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({username,password})
+        });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Login failed');
+        token = data.token;
+        localStorage.setItem('adminToken', token); // save token
+        hide('loginDiv');
+        show('dashboard');
+        await loadRiders();
+        await loadOrders();
+    } catch(err){ console.error('Login error', err); alert('Login error'); }
+}
+
+function logout(){
+    token='';
+    localStorage.removeItem('adminToken');
+    hide('dashboard'); 
+    show('loginDiv'); 
+}
+
+// Check token on page load
+window.onload = function(){
+    if(token){
+        hide('loginDiv');
+        show('dashboard');
+        loadRiders();
+        loadOrders();
+    }
+}
+
+// ---------- Riders ----------
+async function addRider(){
+    const name = document.getElementById('riderName').value.trim();
+    const phone = document.getElementById('riderPhone').value.trim();
+    const username = document.getElementById('riderUsername').value.trim();
+    const password = document.getElementById('riderPassword').value.trim();
+    if(!name||!phone||!username||!password) return alert('All fields required');
+    try{
+        const res = await fetch(`${API}/riders`,{ method:'POST', headers:authHeaders(), body:JSON.stringify({name,phone,username,password}) });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error');
+        alert('Rider added');
+        ['riderName','riderPhone','riderUsername','riderPassword'].forEach(id=>document.getElementById(id).value='');
+        loadRiders();
+    }catch(err){ console.error(err); }
+}
+
+async function loadRiders(){
+    try{
+        const res = await fetch(`${API}/riders`,{ headers:authHeaders() });
+        if(!res.ok) return console.error(await res.text());
+        const data = await res.json();
+        const table = document.getElementById('ridersTable');
+        const select = document.getElementById('assignRider');
+        select.innerHTML = '<option value="">-- Optional: Assign Rider --</option>';
+        table.innerHTML = '<tr><th>ID</th><th>Name</th><th>Phone</th><th>Username</th><th>Credit</th><th>Password</th><th>Actions</th></tr>';
+        data.forEach(r=>{
+            select.innerHTML += `<option value="${r.id}">${r.name} (ID:${r.id})</option>`;
+            table.innerHTML += `<tr>
+                <td>${r.id}</td>
+                <td>${escapeHtml(r.name)}</td>
+                <td>${escapeHtml(r.phone)}</td>
+                <td>${escapeHtml(r.username)}</td>
+                <td>${r.credit}</td>
+                <td>${r.password||'N/A'}</td>
+                <td>
+                    <button onclick="addCoins(${r.id})">Add Coins</button>
+                    <button onclick="setRiderPassword(${r.id})">Set Password</button>
+                    <button onclick="deleteRider(${r.id})" style="background:#d9534f">Delete</button>
+                </td>
+            </tr>`;
+        });
+    }catch(err){ console.error(err); }
+}
+
+// ---------- Add Coins ----------
+async function addCoins(riderId){
+    let coins = prompt("Enter number of coins to add:");
+    if(coins === null) return;
+    coins = parseFloat(coins);
+    if(isNaN(coins) || coins <= 0) return alert("Invalid number of coins");
+    try{
+        const res = await fetch(`${API}/riders/${riderId}/coins`,{
+            method:'POST',
+            headers:authHeaders(),
+            body: JSON.stringify({ coins })
+        });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error adding coins');
+        alert(data.message);
+        loadRiders();
+    }catch(err){ console.error(err); }
+}
+
+// ---------- Orders ----------
+async function createOrder(){
+    const customer_name = document.getElementById('custName').value.trim();
+    const customer_phone = document.getElementById('custPhone').value.trim();
+    const pickup = document.getElementById('pickup').value.trim();
+    const dropoff = document.getElementById('dropoff').value.trim();
+    const distance = parseFloat(document.getElementById('distance').value)||0;
+    const fee = parseFloat(document.getElementById('fee').value)||0;
+    const riderId = document.getElementById('assignRider').value;
+    if(!customer_name||!pickup||!dropoff||!customer_phone) return alert('Fill all required fields');
+
+    const body = { customer_name, customer_phone, pickup, dropoff, distance, fee };
+    if(riderId) body.rider_id = parseInt(riderId);
+
+    try{
+        const res = await fetch(`${API}/orders/manual`,{ method:'POST', headers:authHeaders(), body:JSON.stringify(body) });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error creating order');
+        alert('Order created');
+        ['custName','custPhone','pickup','dropoff','distance','fee'].forEach(id=>document.getElementById(id).value='');
+        document.getElementById('assignRider').value='';
+        loadOrders();
+    }catch(err){ console.error(err); }
+}
+
+async function loadOrders(){
+    try{
+        const res = await fetch(`${API}/orders`,{ headers:authHeaders() });
+        if(!res.ok) return console.error(await res.text());
+        const orders = await res.json();
+
+        const incomingTable = document.getElementById('incomingOrdersTable');
+        const historyTable = document.getElementById('historyOrdersTable');
+
+        incomingTable.innerHTML = '<tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Rider</th><th>Assign</th><th>Proof</th><th>Action</th></tr>';
+        historyTable.innerHTML = '<tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Rider</th><th>Proof</th></tr>';
+
+        orders.forEach(o=>{
+            const pickupProof = o.pickup_image ? `<a href="uploads/${o.pickup_image}" target="_blank">Pickup</a>`:'-';
+            const dropoffProof = o.dropoff_image ? `<a href="uploads/${o.dropoff_image}" target="_blank">Dropoff</a>`:'-';
+
+            let actionBtn = '';
+            if(o.status==='Pending'){
+                actionBtn = `<button onclick="assignOrder(${o.id})">Assign</button>
+                             <button onclick="cancelOrder(${o.id})" style="background:#d9534f">Cancel</button>`;
+            } else if(o.status==='Accepted'){
+                actionBtn = `<button onclick="cancelOrder(${o.id})" style="background:#d9534f">Cancel</button>`;
+                if(o.dropoff_image){
+                    actionBtn += `<button onclick="completeOrder(${o.id})" style="background:#4CAF50;margin-left:5px;">Complete</button>`;
+                }
+            }
+
+            const rowHtml = `<tr>
+                <td>${o.id}</td>
+                <td>${escapeHtml(o.customer_name)}</td>
+                <td>${escapeHtml(o.customer_phone||'-')}</td>
+                <td>${escapeHtml(o.pickup)}</td>
+                <td>${escapeHtml(o.dropoff)}</td>
+                <td>${o.distance}</td>
+                <td>${o.fee}</td>
+                <td>${o.status}</td>
+                <td>${o.rider_id||'-'}</td>
+                <td><button onclick="assignOrder(${o.id})">Assign</button></td>
+                <td>${pickupProof} | ${dropoffProof}</td>
+                <td>${actionBtn}</td>
+            </tr>`;
+
+            if(o.status==='Pending' || o.status==='Accepted'){
+                incomingTable.innerHTML += rowHtml;
+            } else {
+                historyTable.innerHTML += rowHtml.replace('<td><button onclick="assignOrder', '<td>-');
+            }
+        });
+    }catch(err){ console.error(err); }
+}
+
+// ---------- Admin actions ----------
+async function assignOrder(orderId){
+    const riderId = parseInt(prompt('Enter Rider ID to assign:'),10);
+    if(isNaN(riderId)) return;
+    try{
+        const res = await fetch(`${API}/orders/${orderId}/assign`,{ method:'POST', headers:authHeaders(), body:JSON.stringify({riderId}) });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error');
+        alert(data.message);
+        loadOrders();
+    }catch(err){ console.error(err); }
+}
+
+async function cancelOrder(orderId){
+    try{
+        const res = await fetch(`${API}/orders/${orderId}/assign`,{ method:'POST', headers:authHeaders(), body: JSON.stringify({riderId:null}) });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error');
+        alert(data.message);
+        loadOrders();
+    }catch(err){ console.error(err); }
+}
+
+async function completeOrder(orderId){
+    if(!confirm('Mark this order as completed?')) return;
+    try{
+        const res = await fetch(`${API}/orders/${orderId}/complete`, { method:'POST', headers:authHeaders() });
+        const data = await res.json();
+        if(!res.ok) return alert(data.message || 'Error completing order');
+        alert('Order marked as completed');
+        loadOrders();
+    } catch(err){ console.error(err); }
+}
+
+// Placeholder functions
+function setRiderPassword(id){ alert('Set password for rider ID '+id); }
+function deleteRider(id){ alert('Delete rider ID '+id); }
+
+</script>
+</body>
+</html>

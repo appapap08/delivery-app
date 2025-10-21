@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rider Dashboard</title>
+<style>
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #ff7b00, #ff9500);
+    margin:0; padding:0;
+}
+#loginDiv, #dashboard {
+    max-width:700px; margin:40px auto; padding:30px; border-radius:12px;
+    background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+input, button { width:100%; padding:10px; margin:8px 0; border-radius:6px; border:1px solid #ffcc80; box-sizing:border-box;}
+button { background:#ff7b00; color:#fff; font-weight:600; cursor:pointer; border:none; }
+button:hover { background:#ff9500; }
+table { width:100%; border-collapse:collapse; margin-top:12px; table-layout: fixed; word-wrap: break-word; }
+th, td { border:1px solid #ffcc80; padding:8px; text-align:center; }
+th { background:#ffb74d; color:#fff; }
+.status-Pending { background:#fff9c4; }
+.status-Accepted { background:#ffe082; }
+.status-Completed { background:#c8e6c9; }
+.status-Cancelled { background:#ffcdd2; }
+#riderInfo { background:#fff3e0; padding:12px; border-radius:6px; margin-bottom:12px; }
+h2 { color:#ff7b00; text-align:center; }
+form input[type="file"] { width:auto; margin:4px 0; }
+form button { margin-top:6px; }
+</style>
+</head>
+<body>
+
+<div id="loginDiv">
+  <h2>Rider Login</h2>
+  <input id="username" placeholder="Username" />
+  <input id="password" type="password" placeholder="Password" />
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="dashboard" style="display:none;">
+  <h2>Rider Dashboard</h2>
+  <button onclick="logout()">Logout</button>
+
+  <div id="riderInfo"></div>
+
+  <h3>Incoming Orders</h3>
+  <table id="newOrdersTable">
+    <tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Action</th></tr>
+  </table>
+
+  <h3>Order History</h3>
+  <table id="historyOrdersTable">
+    <tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Proof</th></tr>
+  </table>
+</div>
+
+<script>
+const API = "https://kabalen-backend1.onrender.com";
+ // <-- replace 192.168.100.8 with your IPv4
+let token = '';
+let rider = null;
+
+function authHeaders() { return { 'Authorization': 'Bearer ' + token }; }
+function show(id){ document.getElementById(id).style.display='block'; }
+function hide(id){ document.getElementById(id).style.display='none'; }
+
+function escapeHtml(text) {
+    if(!text) return '';
+    return text.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]; });
+}
+
+async function login(){
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  if(!username||!password) return alert('Enter username and password');
+
+  try{
+    const res = await fetch(`${API}/rider/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username,password})
+    });
+    const data = await res.json();
+    if(!res.ok) return alert(data.message || 'Login failed');
+
+    token = data.token;
+    rider = data.rider;
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('rider', JSON.stringify(rider));
+
+    hide('loginDiv');
+    show('dashboard');
+    showRiderInfo();
+    loadOrders();
+  }catch(err){ console.error(err); alert('Login error'); }
+}
+
+function logout(){
+  token=''; rider=null;
+  localStorage.removeItem('token');
+  localStorage.removeItem('rider');
+  hide('dashboard');
+  show('loginDiv');
+}
+
+function showRiderInfo(){
+  const infoDiv = document.getElementById('riderInfo');
+  infoDiv.innerHTML = `<strong>Name:</strong> ${rider.name}<br>
+                       <strong>Phone:</strong> ${rider.phone}<br>
+                       <strong>Credits:</strong> ${rider.credit}`;
+}
+
+// ------------------- UPDATED loadOrders -------------------
+async function loadOrders(){
+    try{
+        const res = await fetch(`${API}/rider/orders`, { headers:authHeaders() });
+        if(!res.ok) return console.error(await res.text());
+        const orders = await res.json();
+
+        const newTable = document.getElementById('newOrdersTable');
+        const historyTable = document.getElementById('historyOrdersTable');
+
+        newTable.innerHTML = '<tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Action</th></tr>';
+        historyTable.innerHTML = '<tr><th>ID</th><th>Customer</th><th>Phone</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Proof</th></tr>';
+
+        orders.forEach(o=>{
+            // Pending orders: hide customer info
+            let customerName = (o.status === 'Pending') ? '-' : o.customer_name || '-';
+            let customerPhone = (o.status === 'Pending') ? '-' : o.customer_phone || '-';
+
+            let actionBtn = '';
+            if(o.status === 'Pending'){
+                actionBtn = `<button onclick="acceptOrder(${o.id})" style="background:#5cb85c;color:#fff">Accept</button>
+                             <button onclick="cancelOrder(${o.id})" style="background:#d9534f;color:#fff">Cancel</button>`;
+            } else if(o.status === 'Accepted'){
+                actionBtn = `
+                <form onsubmit="uploadImages(event,${o.id})">
+                    <input type="file" name="pickup" /> Pickup
+                    <input type="file" name="dropoff" /> Dropoff
+                    <button type="submit">Upload Proof</button>
+                </form>`;
+                if(o.dropoff_image){
+                    actionBtn += `<button onclick="completeOrder(${o.id})" style="background:#0275d8;color:#fff">Complete</button>`;
+                }
+            }
+
+            const proofBtn = (o.pickup_image || o.dropoff_image) ? `<a href="${API}/uploads/${o.dropoff_image||o.pickup_image}" target="_blank">View</a>` : '-';
+
+            const rowHtml = `<tr>
+                <td>${o.id}</td>
+                <td>${escapeHtml(customerName)}</td>
+                <td>${escapeHtml(customerPhone)}</td>
+                <td>${escapeHtml(o.pickup)}</td>
+                <td>${escapeHtml(o.dropoff)}</td>
+                <td>${o.distance}</td>
+                <td>${o.fee}</td>
+                <td>${o.status}</td>
+                <td>${actionBtn || proofBtn}</td>
+            </tr>`;
+
+            if(o.status === 'Pending' || o.status === 'Accepted'){
+                newTable.innerHTML += rowHtml;
+            } else {
+                historyTable.innerHTML += rowHtml;
+            }
+        });
+    }catch(err){ console.error(err); }
+}
+
+// ------------------- ACCEPT, CANCEL, UPLOAD, COMPLETE -------------------
+async function acceptOrder(orderId){
+  try{
+    const res = await fetch(`${API}/rider/orders/${orderId}/accept`, { method:'POST', headers:authHeaders() });
+    const data = await res.json();
+    if(!res.ok) return alert(data.message||'Error accepting');
+    alert(data.message);
+    loadOrders();
+  } catch(err){ console.error(err); }
+}
+
+async function cancelOrder(orderId){
+  try{
+    const res = await fetch(`${API}/orders/${orderId}/assign`, {
+        method:'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ riderId: null })
+    });
+    const data = await res.json();
+    if(!res.ok) return alert(data.message || 'Cancel failed');
+    alert('Order cancelled');
+    loadOrders();
+  } catch(err){ console.error(err); }
+}
+
+async function uploadImages(event, orderId){
+  event.preventDefault();
+  const form = event.target;
+  const formDataPickup = new FormData();
+  if(form.pickup.files.length>0) formDataPickup.append('image', form.pickup.files[0]);
+  formDataPickup.append('type','pickup');
+
+  try{
+    let res = await fetch(`${API}/orders/${orderId}/upload`, { method:'POST', headers:{'Authorization':'Bearer '+token}, body: formDataPickup });
+    let data = await res.json();
+    if(!res.ok) return alert(data.message||'Upload failed');
+
+    if(form.dropoff.files.length>0){
+      const formDataDrop = new FormData();
+      formDataDrop.append('image', form.dropoff.files[0]);
+      formDataDrop.append('type','dropoff');
+      res = await fetch(`${API}/orders/${orderId}/upload`, { method:'POST', headers:{'Authorization':'Bearer '+token}, body: formDataDrop });
+      data = await res.json();
+      if(!res.ok) return alert(data.message||'Upload failed');
+    }
+
+    alert('Proof uploaded successfully');
+    loadOrders();
+  } catch(err){ console.error(err); }
+}
+
+async function completeOrder(orderId){
+  try{
+    const res = await fetch(`${API}/rider/orders/${orderId}/complete`, { method:'POST', headers:authHeaders() });
+    const data = await res.json();
+    if(!res.ok) return alert(data.message||'Error completing order');
+    alert('Order marked as completed');
+    loadOrders();
+  } catch(err){ console.error(err); }
+}
+
+// Persist login
+window.addEventListener('DOMContentLoaded', () => {
+    const savedToken = localStorage.getItem('token');
+    const savedRider = localStorage.getItem('rider');
+    if (savedToken && savedRider) {
+        token = savedToken;
+        rider = JSON.parse(savedRider);
+        hide('loginDiv');
+        show('dashboard');
+        showRiderInfo();
+        loadOrders();
+    }
+});
+</script>
+</body>
+</html>

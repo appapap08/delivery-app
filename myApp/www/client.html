@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<title>Client App</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+<!-- Leaflet Routing Machine (for route lines) -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css"
+/>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<style>
+  /* Computed fields style */
+input.computed {
+  background: linear-gradient(135deg, #ffecb3, #ffd180);
+  border: 2px solid #ffa500;
+  font-weight: 600;
+  color: #d84315;
+  text-align: center;
+  cursor: not-allowed; /* shows user can't type */
+  transition: all 0.3s ease;
+}
+
+input.computed:focus {
+  outline: none;
+  box-shadow: 0 0 8px #ff8c00;
+}
+
+input.computed::placeholder {
+  color: #ff6f00;
+  font-weight: 500;
+  opacity: 0.8;
+}
+  #notes {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #ffa500;
+  border-radius: 8px;
+  resize: vertical;
+  font-size: 15px;
+  font-family: 'Poppins', sans-serif;
+  background: #fff8f0;
+  min-height: 60px;
+  transition: all 0.2s ease;
+  margin-top: 5px;
+}
+
+#notes:focus {
+  border-color: #ff7300;
+  outline: none;
+  background: #fff3e0;
+}
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #ff7b00, #ff9500);
+    margin:0; padding:0;
+    display:flex; justify-content:center; align-items:flex-start;
+    min-height:100vh; padding-top:30px;
+  }
+  .container {
+    width:95%; max-width:700px;
+    background: rgba(255,255,255,0.95);
+    border-radius:20px;
+    padding:30px 40px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.2);
+    position: relative;
+  }
+  h2,h3{color:#ff7b00;}
+  input, select, button {
+    width:100%; padding:10px; margin:6px 0;
+    border-radius:8px; border:1px solid #ffcc80;
+    box-sizing:border-box;
+  }
+  button {
+    background:#ff7b00; color:#fff; font-weight:600; cursor:pointer;
+    transition:0.3s;
+  }
+  button:hover { background:#ff9500; }
+  table {
+    width:100%; border-collapse:collapse; margin-top:12px;
+    table-layout: fixed; word-wrap: break-word;
+  }
+  th,td {
+    border:1px solid #ffcc80; padding:10px; text-align:center;
+  }
+  th { background:#ffb74d; color:#fff; }
+  .photo-cards { display:flex; gap:15px; flex-wrap:wrap; margin-bottom:15px; }
+  .photo-card {
+    flex:1; min-width:120px; background:#ffa500; color:#fff;
+    padding:15px; border-radius:15px; text-align:center;
+    cursor:pointer; transition: transform 0.2s, box-shadow 0.3s; user-select:none;
+  }
+  .photo-card.selected { box-shadow: 0 0 20px 5px rgba(255,255,255,0.6); transform: scale(1.05); }
+  .photo-card .icon { font-size:2.5em; margin-bottom:10px; }
+  .photo-card p { margin:5px 0; font-weight:500; }
+  .photo-card small { font-size:0.8em; color:#fff; opacity:0.9; }
+  #map { height:250px; width:100%; border-radius:12px; margin-bottom:15px; }
+  .suggestions {
+    position:absolute;
+    background:white;
+    border:1px solid #ccc;
+    width:95%;
+    z-index:1000;
+    display:none;
+    max-height:150px;
+    overflow-y:auto;
+  }
+  .suggestions div { padding:8px; cursor:pointer; }
+  /* === AUTOCOMPLETE DROPDOWN STYLE (Enhanced) === */
+.suggestions {
+  position: absolute;
+  background: #ff7b00; /* Bright orange background */
+  color: white;
+  border-radius: 12px;
+  width: 95%;
+  margin-top: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  z-index: 99999; /* Stays above all other elements */
+  display: none;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+.suggestions div {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.3);
+  transition: background 0.2s, transform 0.1s;
+}
+
+.suggestions div:hover {
+  background: rgba(255,255,255,0.2);
+  transform: scale(1.02);
+}
+
+.suggestions div:last-child {
+  border-bottom: none;
+}
+
+/* Fade-in animation for smooth entry */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Optional: Slight dim background behind dropdown when active */
+input:focus + .suggestions {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Registration -->
+<div id="registerDiv">
+  <h2>Client Registration</h2>
+  <input id="fullname" placeholder="Full Name" />
+  <input id="address" placeholder="Address" />
+  <input id="phone" placeholder="Phone" />
+  <input id="username" placeholder="Username" />
+  <input id="password" type="password" placeholder="Password" />
+  <h3>Upload Documents</h3>
+  <div style="display:flex; gap:20px; flex-wrap:wrap;">
+    <div class="file-card">
+      <p>Valid ID</p>
+      <input type="file" id="validId" accept="image/*" />
+      <img id="validIdPreview" />
+      <p id="validIdName"></p>
+      <button type="button" onclick="removeFile('validId')">Remove</button>
+    </div>
+    <div class="file-card">
+      <p>Selfie</p>
+      <input type="file" id="selfie" accept="image/*" />
+      <img id="selfiePreview" />
+      <p id="selfieName"></p>
+      <button type="button" onclick="removeFile('selfie')">Remove</button>
+    </div>
+  </div>
+  <button onclick="registerClient()">Register</button>
+  <p>Already have an account? <a href="#" onclick="showLogin()">Login</a></p>
+</div>
+
+<!-- Login -->
+<div id="loginDiv" style="display:none;">
+  <h2>Client Login</h2>
+  <input id="loginUsername" placeholder="Username" />
+  <input id="loginPassword" type="password" placeholder="Password" />
+  <button onclick="loginClient()">Login</button>
+  <p>No account? <a href="#" onclick="showRegister()">Register</a></p>
+</div>
+
+<!-- Dashboard -->
+<div id="clientDashboard" style="display:none;">
+  <h2>Welcome, <span id="clientName"></span></h2>
+
+  <div class="photo-cards">
+    <div class="photo-card" onclick="selectOrderType('food')" id="card-food">
+      <div class="icon">🍔</div>
+      <p>Food</p>
+      <small>Delivery of meals and groceries</small>
+    </div>
+    <div class="photo-card" onclick="selectOrderType('motorcycle')" id="card-motorcycle">
+      <div class="icon">🏍️</div>
+      <p>Motorcycle Taxi</p>
+      <small>Single-seater bike taxi</small>
+    </div>
+    <div class="photo-card" onclick="selectOrderType('motor3w')" id="card-motor3w">
+      <div class="icon">🛺</div>
+      <p>3-Wheel Taxi</p>
+      <small>Motorcycle with passenger sidecar</small>
+    </div>
+    <div class="photo-card" onclick="selectOrderType('4wheels')" id="card-4wheels">
+      <div class="icon">🚗</div>
+      <p>Car Taxi</p>
+      <small>Car with multiple seats</small>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="orderFormDiv" style="display:none; margin-top:10px; padding:10px; border:1px solid #ccc; border-radius:8px;">
+    <h3 id="orderTypeTitle"></h3>
+    <input id="pickup" placeholder="Pickup Location" />
+    <input id="dropoff" placeholder="Dropoff Location" />
+   
+<!-- 📝 New Delivery Notes box -->
+<div class="form-group">
+  <label for="notes">📝 Delivery Notes (optional)</label>
+  <textarea id="notes" placeholder="Add any special instructions for your rider..."></textarea>
+</div>
+
+<input id="distance" placeholder="Distance (km)" type="number" readonly class="computed" />
+<input id="fee" placeholder="Delivery Fee" type="number" readonly class="computed" />
+    <div id="passengerDiv" style="display:none; margin-top:10px;">
+      <label>Number of seats:</label>
+      <select id="seater">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+      </select>
+      <input id="passengerCount" type="number" placeholder="Number of passengers" min="1" style="margin-top:5px;" />
+    </div>
+    <button onclick="createClientOrder()">Place Order</button>
+    <button onclick="hideOrderForm()">Cancel</button>
+  </div>
+
+  <h3>Your Orders</h3>
+  <table id="clientOrdersTable"></table>
+  <button onclick="logoutClient()" style="background:#d9534f;">Logout</button>
+</div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<script>
+const API = "https://kabalen-backend1.onrender.com";
+let token='', clientId='', orderType='';
+let map, pickupMarker=null, dropoffMarker=null, mapInitialized=false;
+let geocoder;
+let routeControl = null;
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const savedToken = localStorage.getItem('token');
+  const savedClient = localStorage.getItem('client');
+  if(savedToken && savedClient){
+    token = savedToken;
+    const client = JSON.parse(savedClient);
+    clientId = client.id;
+    document.getElementById('clientName').innerText = client.fullname;
+    document.getElementById('registerDiv').style.display='none';
+    document.getElementById('loginDiv').style.display='none';
+    document.getElementById('clientDashboard').style.display='block';
+    setTimeout(initMap, 500);
+    loadClientOrders();
+  }
+});
+
+function removeFile(type){
+  if(type==='validId'){ validId.value=''; validIdPreview.src=''; validIdName.innerText=''; }
+  else if(type==='selfie'){ selfie.value=''; selfiePreview.src=''; selfieName.innerText=''; }
+}
+function showRegister(){ registerDiv.style.display='block'; loginDiv.style.display='none'; }
+function showLogin(){ loginDiv.style.display='block'; registerDiv.style.display='none'; }
+
+async function registerClient(){
+  const fullname=fullname.value.trim(), address=address.value.trim(), phone=phone.value.trim(), username=username.value.trim(), password=password.value.trim();
+  const validId=window.validId.files[0], selfie=window.selfie.files[0];
+  if(!fullname||!address||!phone||!username||!password||!validId||!selfie) return alert('All fields required');
+  const formData=new FormData();
+  formData.append('fullname',fullname);
+  formData.append('address',address);
+  formData.append('phone',phone);
+  formData.append('username',username);
+  formData.append('password',password);
+  formData.append('validId',validId);
+  formData.append('selfie',selfie);
+  const res=await fetch(`${API}/clients/register`,{method:'POST',body:formData});
+  const data=await res.json();
+  if(!res.ok) return alert(data.message||'Error registering');
+  alert('Registration successful! Please login.');
+  showLogin();
+}
+
+async function loginClient(){
+  const username=loginUsername.value.trim(), password=loginPassword.value.trim();
+  if(!username||!password) return alert('Enter username and password');
+  const res=await fetch(`${API}/clients/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+  const data=await res.json();
+  if(!res.ok) return alert(data.message||'Login failed');
+  token=data.token; clientId=data.client.id;
+  document.getElementById('clientName').innerText=data.client.fullname;
+  registerDiv.style.display='none'; loginDiv.style.display='none'; clientDashboard.style.display='block';
+  localStorage.setItem('token',token);
+  localStorage.setItem('client',JSON.stringify(data.client));
+  setTimeout(initMap, 500);
+  loadClientOrders();
+}
+
+function logoutClient(){
+  token=''; clientId='';
+  localStorage.removeItem('token');
+  localStorage.removeItem('client');
+  clientDashboard.style.display='none';
+  showLogin();
+}
+
+function selectOrderType(type){
+  orderType=type;
+  document.querySelectorAll('.photo-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('card-'+type).classList.add('selected');
+  showOrderForm(type);
+  passengerDiv.style.display = (type==='motorcycle'||type==='motor3w'||type==='4wheels') ? 'block':'none';
+}
+function showOrderForm(type){
+  const titleMap={'food':'Food Delivery','motorcycle':'Motorcycle Taxi','motor3w':'3-Wheel Taxi','4wheels':'Car Taxi'};
+  orderTypeTitle.innerText=titleMap[type]||'New Order';
+  orderFormDiv.style.display='block';
+}
+function hideOrderForm(){
+  orderFormDiv.style.display='none';
+  ['pickup','dropoff','distance','fee','passengerCount'].forEach(id=>document.getElementById(id).value='');
+}
+
+async function createClientOrder(){
+  const pickup=pickup.value.trim(), dropoff=dropoff.value.trim();
+  const distance=parseFloat(distance.value)||0, fee=parseFloat(fee.value)||0;
+  const passengers=parseInt(passengerCount.value)||1;
+  const notes = document.getElementById('notes').value.trim();
+  if(!pickup||!dropoff) return alert('Fill all fields');
+  const res=await fetch(`${API}/clients/orders`,{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify({pickup,dropoff,distance,fee,type:orderType,passengers})
+  });
+  const data=await res.json();
+  if(!res.ok) return alert(data.message||'Error placing order');
+  alert('Order placed!');
+  hideOrderForm();
+  loadClientOrders();
+}
+
+async function loadClientOrders(){
+  const res=await fetch(`${API}/clients/orders`,{headers:{'Authorization':'Bearer '+token}});
+  if(!res.ok) return;
+  const data=await res.json();
+  const table=document.getElementById('clientOrdersTable');
+  table.innerHTML='<tr><th>ID</th><th>Type</th><th>Pickup</th><th>Dropoff</th><th>Distance</th><th>Fee</th><th>Status</th><th>Passengers</th></tr>';
+  data.forEach(o=>{
+    table.innerHTML+=`<tr>
+      <td>${o.id}</td><td>${o.type||'-'}</td><td>${o.pickup}</td><td>${o.dropoff}</td>
+      <td>${o.distance}</td><td>${o.fee}</td><td>${o.status}</td><td>${o.passengers||'-'}</td>
+    </tr>`;
+  });
+}
+
+// ----------- MAP SYSTEM -----------
+function initMap(){
+  if(mapInitialized) return;
+  mapInitialized=true;
+  map = L.map('map').setView([14.5995,120.9842],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  geocoder = L.Control.Geocoder.nominatim();
+
+ // Autocomplete with floating dropdown + loading state
+['pickup', 'dropoff'].forEach(id => {
+  const input = document.getElementById(id);
+  let timeout;
+  const dropdown = document.createElement('div');
+  dropdown.className = 'suggestions';
+  document.body.appendChild(dropdown); // append to body for floating effect
+
+  // Function to position dropdown directly under input
+  const positionDropdown = () => {
+    const rect = input.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = rect.bottom + window.scrollY + 'px';
+    dropdown.style.width = rect.width + 'px';
+  };
+
+  // Reposition on scroll/resize
+  window.addEventListener('scroll', positionDropdown);
+  window.addEventListener('resize', positionDropdown);
+
+  input.addEventListener('focus', positionDropdown);
+  input.addEventListener('input', () => {
+    clearTimeout(timeout);
+    const q = input.value.trim();
+    if (!q) { dropdown.style.display = 'none'; return; }
+
+    positionDropdown(); // keep dropdown aligned
+    dropdown.innerHTML = `<div style="padding:10px; text-align:center; font-style:italic; opacity:0.8;">🔍 Searching...</div>`;
+    dropdown.style.display = 'block';
+
+    timeout = setTimeout(() => {
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=ph`)
+        .then(r => r.json())
+        .then(results => {
+          dropdown.innerHTML = '';
+          if (results.length === 0) {
+            dropdown.innerHTML = `<div style="padding:10px; text-align:center; opacity:0.8;">❌ No results found</div>`;
+            return;
+          }
+
+          results.forEach(r => {
+            const opt = document.createElement('div');
+            opt.textContent = r.display_name;
+            opt.onclick = () => {
+              input.value = r.display_name;
+              dropdown.style.display = 'none';
+              markLocation(id, [parseFloat(r.lat), parseFloat(r.lon)], r.display_name);
+            };
+            dropdown.appendChild(opt);
+          });
+
+          dropdown.style.display = 'block';
+          positionDropdown();
+        })
+        .catch(() => {
+          dropdown.innerHTML = `<div style="padding:10px; text-align:center; color:white;">⚠️ Error fetching results</div>`;
+        });
+    }, 300);
+  });
+// 🚗 Draw route line between pickup and dropoff
+function drawRoute() {
+  if (!pickupMarker || !dropoffMarker) return;
+
+  // Remove old route if it exists
+  if (routeControl) {
+    map.removeControl(routeControl);
+  }
+
+  // Create a new route using Leaflet Routing Machine
+  routeControl = L.Routing.control({
+    waypoints: [
+      pickupMarker.getLatLng(),
+      dropoffMarker.getLatLng()
+    ],
+    lineOptions: {
+      styles: [{ color: '#ff7b00', weight: 5, opacity: 0.8 }] // orange line
+    },
+    createMarker: () => null, // hide default route markers
+    addWaypoints: false,
+    draggableWaypoints: false,
+    fitSelectedRoutes: false
+  }).addTo(map);
+}
+
+  // Hide dropdown when clicking elsewhere
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== input) {
+      dropdown.style.display = 'none';
+    }
+  });
+});
+  // My Location
+  const geoBtn=L.control({position:'topright'});
+  geoBtn.onAdd=function(){
+    const div=L.DomUtil.create('div','leaflet-bar leaflet-control leaflet-control-custom');
+    div.style.backgroundColor='#ff7b00';
+    div.style.padding='5px';
+    div.style.cursor='pointer';
+    div.innerHTML='📍 My Location';
+    div.onclick=()=>{ if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const lat=pos.coords.latitude, lng=pos.coords.longitude;
+        map.setView([lat,lng],15);
+        markLocation('pickup',[lat,lng],'My Location');
+      });
+    }};
+    return div;
+  }
+  geoBtn.addTo(map);
+
+  // Map click
+  map.on('click',e=>{
+    if(!pickupMarker) markLocation('pickup',[e.latlng.lat,e.latlng.lng]);
+    else if(!dropoffMarker) markLocation('dropoff',[e.latlng.lat,e.latlng.lng]);
+    else {
+      dropoffMarker.setLatLng(e.latlng);
+      updateAddress('dropoff',e.latlng);
+    }
+    updateDistanceFee();
+  });
+}
+
+function markLocation(type,latlng,label='Selected Location'){
+  if(type==='pickup'){
+    if(!pickupMarker){
+      pickupMarker=L.marker(latlng,{draggable:true}).addTo(map);
+      pickupMarker.on('dragend',e=>{updateAddress('pickup',e.target.getLatLng());updateDistanceFee();});
+    } else pickupMarker.setLatLng(latlng);
+    pickup.value=label;
+  }
+  if(type==='dropoff'){
+    if(!dropoffMarker){
+      dropoffMarker=L.marker(latlng,{draggable:true}).addTo(map);
+      dropoffMarker.on('dragend',e=>{updateAddress('dropoff',e.target.getLatLng());updateDistanceFee();});
+    } else dropoffMarker.setLatLng(latlng);
+    dropoff.value=label;
+  }
+  fitMapToMarkers();
+  updateDistanceFee();
+}
+
+function updateAddress(type,latlng){
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`)
+  .then(res=>res.json())
+  .then(data=>{
+    const name=data.display_name||`${latlng.lat.toFixed(5)},${latlng.lng.toFixed(5)}`;
+    document.getElementById(type).value=name;
+  });
+}
+function highlightField(fieldId){
+  const field = document.getElementById(fieldId);
+  field.style.background = 'linear-gradient(135deg, #ffe57f, #ffb300)';
+  setTimeout(() => {
+    field.style.background = 'linear-gradient(135deg, #ffecb3, #ffd180)';
+  }, 500);
+}
+
+function updateDistanceFee(){
+  if(!pickupMarker||!dropoffMarker) return;
+  const latlng1 = pickupMarker.getLatLng(),
+        latlng2 = dropoffMarker.getLatLng();
+
+  const R = 6371, 
+        dLat = (latlng2.lat - latlng1.lat) * Math.PI / 180, 
+        dLon = (latlng2.lng - latlng1.lng) * Math.PI / 180;
+
+  const a = Math.sin(dLat/2)**2 + 
+            Math.cos(latlng1.lat*Math.PI/180) * 
+            Math.cos(latlng2.lat*Math.PI/180) * 
+            Math.sin(dLon/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c;
+
+  document.getElementById('distance').value = distance.toFixed(2);
+  document.getElementById('fee').value = (distance * 14).toFixed(2);
+
+   highlightField('distance');
+  highlightField('fee');
+
+  // 🗺️ Draw the route line
+  drawRoute(); 
+}
+
+function fitMapToMarkers(){
+  if(pickupMarker && dropoffMarker){
+    const group = new L.featureGroup([pickupMarker, dropoffMarker]);
+    map.fitBounds(group.getBounds().pad(0.3));
+  } else if(pickupMarker) {
+    map.setView(pickupMarker.getLatLng(), 15);
+  } else if(dropoffMarker) {
+    map.setView(dropoffMarker.getLatLng(), 15);
+  }
+}
+// === AUTO-COMPLETE DROPDOWN UPDATE ===
+// Applies to both pickup and dropoff input fields
+function setupAutocomplete(inputId, isPickup) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const dropdown = document.createElement('div');
+  dropdown.className = 'suggestions';
+  Object.assign(dropdown.style, {
+    position: 'absolute',
+    background: 'white',
+    border: '1px solid #ccc',
+    borderRadius: '6px',
+    zIndex: 10000,
+    maxHeight: '150px',
+    overflowY: 'auto',
+    display: 'none',
+    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+  });
+  document.body.appendChild(dropdown);
+
+  function positionDropdown() {
+    const rect = input.getBoundingClientRect();
+    dropdown.style.left = rect.left + 'px';
+    dropdown.style.top = rect.bottom + window.scrollY + 'px';
+    dropdown.style.width = rect.width + 'px';
+  }
+
+  input.addEventListener('focus', positionDropdown);
+  input.addEventListener('input', positionDropdown);
+  window.addEventListener('resize', positionDropdown);
+  window.addEventListener('scroll', positionDropdown, true);
+
+  input.addEventListener('input', async () => {
+    const query = input.value.trim();
+    if (query.length < 3) {
+      dropdown.style.display = 'none';
+      return;
+    }
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`
+    );
+    const data = await res.json();
+    dropdown.innerHTML = '';
+    data.forEach((loc) => {
+      const div = document.createElement('div');
+      div.textContent = loc.display_name;
+      div.style.padding = '8px';
+      div.style.cursor = 'pointer';
+      div.addEventListener('mouseover', () => (div.style.background = '#ffe4c4'));
+      div.addEventListener('mouseout', () => (div.style.background = 'white'));
+      div.onclick = () => {
+        input.value = loc.display_name;
+        const lat = +loc.lat,
+          lon = +loc.lon;
+        if (isPickup) {
+          if (window.pickupMarker) pickupMarker.setLatLng([lat, lon]);
+          else
+            window.pickupMarker = L.marker([lat, lon], { draggable: true })
+              .addTo(window.map)
+              .on('dragend', window.onMarkerDrag);
+        } else {
+          if (window.dropoffMarker) dropoffMarker.setLatLng([lat, lon]);
+          else
+            window.dropoffMarker = L.marker([lat, lon], { draggable: true })
+              .addTo(window.map)
+              .on('dragend', window.onMarkerDrag);
+        }
+        window.map.setView([lat, lon], 15);
+        if (typeof window.updateDistanceFee === 'function') window.updateDistanceFee();
+        if (typeof window.fitToMarkers === 'function') window.fitToMarkers();
+        dropdown.style.display = 'none';
+      };
+      dropdown.appendChild(div);
+    });
+    dropdown.style.display = 'block';
+    positionDropdown();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target) && e.target !== input) dropdown.style.display = 'none';
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') dropdown.style.display = 'none';
+  });
+  
+}
+
+
+// Activate autocomplete for pickup and dropoff fields
+setupAutocomplete('pickup', true);
+setupAutocomplete('dropoff', false);
+</script>
+</body>
+</html>
