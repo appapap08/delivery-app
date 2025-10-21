@@ -31,29 +31,23 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// --- Middleware ---
-const cors = require('cors');
-
+// --- CORS Middleware ---
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-
+    if (!origin) return callback(null, true); // allow mobile apps and Postman
     const allowedOrigins = [
       "https://kabalen.onrender.com",
       "https://kabalen-backend1.onrender.com",
       "http://localhost",
       "http://localhost:3000"
     ];
-
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
   credentials: true
 }));
-
 
 // Serve uploads folder
 app.use('/uploads', express.static(uploadDir));
