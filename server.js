@@ -11,21 +11,22 @@ const app = express();
 
 // ✅ Allow both frontend URLs for CORS
 app.use(cors({
-  origin: [
-    "https://kabalen.onrender.com",
-    "https://kabalen-backend1.onrender.com",
-    "http://localhost:3000"
-  ],
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps or Postman)
+    if (!origin) return callback(null, true);
+    const allowedOrigins = [
+      "https://kabalen.onrender.com",
+      "https://kabalen-backend1.onrender.com",
+      "http://localhost",
+      "http://localhost:3000"
+    ];
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
-
-app.use(cors({
-  origin: ["file://", "https://kabalen.onrender.com"],
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization"]
-}));
-
 
 app.use(bodyParser.json());
 
