@@ -39,9 +39,13 @@ app.use(bodyParser.json());
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'myApp/www/index.html'));
 });
+const DATA_FILE = path.join(__dirname, 'data.json');
+const SECRET_KEY = 'supersecretkey';
+const uploadDir = path.join(__dirname, '../front-end/uploads');
 
 // Ensure uploads folder exists
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
 
 // Multer setup for file uploads
 const storage = multer.diskStorage({
@@ -53,12 +57,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ✅ Serve static files (frontend)
-app.use(express.static(path.join(__dirname, '../front-end')));
+// Serve frontend
+const frontEndDir = path.join(__dirname, '../front-end');
+app.use(express.static(frontEndDir));
 
-// Default route (when visiting backend URL)
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../front-end/index.html'));
+// SPA fallback
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontEndDir, 'index.html'));
 });
 
 // ✅ Test API route
