@@ -39,7 +39,9 @@ app.use(cors({
       "https://kabalen.onrender.com",
       "https://kabalen-backend1.onrender.com",
       "http://localhost",
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "https://localhost" 
+      
     ];
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
