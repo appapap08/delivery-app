@@ -30,10 +30,16 @@ app.use(cors({
 
 app.use(bodyParser.json());
 
-// --- Constants and file paths ---
-const SECRET_KEY = "supersecretkey";
-const DATA_FILE = path.join(__dirname, 'data.json');
-const uploadDir = path.join(__dirname, '../front-end/uploads');
+// old paths
+// const uploadDir = path.join(__dirname, '../front-end/uploads');
+// app.use(express.static(path.join(__dirname, '../front-end')));
+// res.sendFile(path.join(__dirname, '../front-end/index.html'));
+
+// updated paths
+const uploadDir = path.join(__dirname, 'myApp/www/uploads');
+app.use(express.static(path.join(__dirname, 'myApp/www')));
+res.sendFile(path.join(__dirname, 'myApp/www/index.html'));
+
 
 // Ensure uploads folder exists
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
