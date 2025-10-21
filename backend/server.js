@@ -14,50 +14,46 @@ const SECRET_KEY = "supersecretkey";
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 // --- Frontend path ---
-const frontEndDir = path.join(__dirname, '../myApp/www'); // <-- Correct relative path
-console.log('Serving frontend from:', frontEndDir);
-
-// Ensure uploads folder exists
+const frontEndDir = path.join(__dirname, '../myApp/www');
 const uploadDir = path.join(frontEndDir, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
-// Multer setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueName = `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-const upload = multer({ storage });
+// --- Middleware ---
+app.use(bodyParser.json());
 
 // --- CORS Middleware ---
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow mobile apps and Postman
-    const allowedOrigins = [
-      "https://kabalen.onrender.com",
-      "https://kabalen-backend1.onrender.com",
-      "http://localhost",
-      "http://localhost:3000",
-      "https://localhost" 
-      
-    ];
+    if (!origin) return callback(null, true); // allow mobile apps or Postman
+    if (origin.startsWith("http://localhost") || origin.startsWith("https://localhost")) return callback(null, true);
+   const allowedOrigins = [
+  "https://kabalen.onrender.com",
+  "https://kabalen-backend1.onrender.com",
+  "http://localhost",
+  "http://localhost:3000",
+  "https://localhost"   // add this line
+];
+
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization"],
   credentials: true
 }));
 
-// Serve uploads folder
+// Serve static frontend & uploads
+app.use(express.static(frontEndDir));
 app.use('/uploads', express.static(uploadDir));
 
-// Serve static frontend
-app.use(express.static(frontEndDir));
+// Multer setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`)
+});
+const upload = multer({ storage });
 
-// --- Load & Save Data ---
+// --- Load/Save Data ---
 function loadData() {
   if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify({
@@ -67,7 +63,6 @@ function loadData() {
   }
   return JSON.parse(fs.readFileSync(DATA_FILE));
 }
-
 function saveData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
@@ -86,6 +81,10 @@ function auth(req, res, next) {
   }
 }
 
+// =======================
+//       API ROUTES
+// =======================
+
 // --- Admin Login ---
 app.post('/admin/login', (req, res) => {
   const { username, password } = req.body;
@@ -96,12 +95,11 @@ app.post('/admin/login', (req, res) => {
   res.status(401).json({ message: 'Invalid credentials' });
 });
 
-// --- Riders CRUD ---
+// --- Riders CRUD & Login ---
 app.get('/riders', auth, (req, res) => {
   const data = loadData();
   res.json(data.riders);
 });
-
 app.post('/riders', auth, (req, res) => {
   const { name, phone, username, password } = req.body;
   if (!name || !phone || !username || !password) return res.status(400).json({ message: 'All fields required' });
@@ -111,7 +109,6 @@ app.post('/riders', auth, (req, res) => {
   saveData(data);
   res.json(newRider);
 });
-
 app.post('/riders/:id/coins', auth, (req, res) => {
   const riderId = parseInt(req.params.id);
   const { coins } = req.body;
@@ -123,8 +120,6 @@ app.post('/riders/:id/coins', auth, (req, res) => {
   saveData(data);
   res.json({ message: `Added ${coins} coins to rider ${rider.name}`, credit: rider.credit });
 });
-
-// --- Rider Login & Orders ---
 app.post('/rider/login', (req, res) => {
   const { username, password } = req.body;
   const data = loadData();
@@ -134,58 +129,11 @@ app.post('/rider/login', (req, res) => {
   res.json({ token, rider });
 });
 
-app.get('/rider/orders', auth, (req, res) => {
-  const riderId = req.user.riderId;
-  const data = loadData();
-  const ordersWithClientInfo = data.orders
-    .filter(o => o.rider_id === riderId || o.status === 'Pending')
-    .map(o => {
-      let customerName = o.customer_name || '-';
-      let customerPhone = o.customer_phone || '-';
-      if (o.client_id) {
-        const client = data.clients.find(c => c.id === o.client_id);
-        if (client) {
-          customerName = client.fullname;
-          customerPhone = client.phone;
-        }
-      }
-      return { ...o, customer_name: customerName, customer_phone: customerPhone };
-    });
-  res.json(ordersWithClientInfo);
-});
-
-app.post('/rider/orders/:id/accept', auth, (req, res) => {
-  const riderId = req.user.riderId;
-  const orderId = parseInt(req.params.id);
-  const data = loadData();
-  const order = data.orders.find(o => o.id === orderId);
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  if (order.rider_id && order.rider_id !== riderId) return res.status(403).json({ message: 'Order already assigned' });
-  order.rider_id = riderId;
-  order.status = 'Accepted';
-  saveData(data);
-  res.json({ message: 'Order accepted', order });
-});
-
-app.post('/rider/orders/:id/complete', auth, (req, res) => {
-  const riderId = req.user.riderId;
-  const orderId = parseInt(req.params.id);
-  const data = loadData();
-  const order = data.orders.find(o => o.id === orderId);
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  if (order.rider_id !== riderId) return res.status(403).json({ message: 'Not authorized' });
-  if (!order.dropoff_image) return res.status(400).json({ message: 'Dropoff proof required' });
-  order.status = 'Completed';
-  saveData(data);
-  res.json({ message: 'Order marked as completed', order });
-});
-
 // --- Orders CRUD ---
 app.get('/orders', auth, (req, res) => {
   const data = loadData();
   res.json(data.orders);
 });
-
 app.post('/orders/manual', auth, (req, res) => {
   const { customer_name, customer_phone, pickup, dropoff, distance, fee, rider_id } = req.body;
   if (!customer_name || !pickup || !dropoff) return res.status(400).json({ message: 'Missing fields' });
@@ -221,40 +169,17 @@ app.post('/orders/:id/upload', auth, upload.single('image'), (req, res) => {
   res.json({ message: 'Image uploaded', filename: req.file.filename });
 });
 
-// --- Assign/cancel orders ---
-app.post('/orders/:id/assign', auth, (req, res) => {
-  const orderId = parseInt(req.params.id);
-  const { riderId } = req.body;
-  const data = loadData();
-  const order = data.orders.find(o => o.id === orderId);
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  order.rider_id = riderId || null;
-  order.status = riderId ? 'Accepted' : 'Pending';
-  saveData(data);
-  res.json({ message: riderId ? 'Order assigned' : 'Order cancelled' });
-});
-
-// --- Client registration/login/orders ---
+// --- Client Login/Register ---
 app.post('/clients/register', upload.fields([{ name: 'validId' }, { name: 'selfie' }]), (req, res) => {
   const { fullname, address, phone, username, password } = req.body;
-  const validIdFile = req.files['validId'] ? req.files['validId'][0].filename : null;
-  const selfieFile = req.files['selfie'] ? req.files['selfie'][0].filename : null;
-
+  const validIdFile = req.files['validId']?.[0]?.filename;
+  const selfieFile = req.files['selfie']?.[0]?.filename;
   if (!fullname || !address || !phone || !username || !password || !validIdFile || !selfieFile) {
     return res.status(400).json({ message: 'All fields including files are required' });
   }
-
   const data = loadData();
-  if (data.clients.find(c => c.username === username)) {
-    return res.status(400).json({ message: 'Username already taken' });
-  }
-
-  const newClient = {
-    id: data.nextClientId++, fullname, address, phone,
-    username, password,
-    validId: validIdFile,
-    selfie: selfieFile
-  };
+  if (data.clients.find(c => c.username === username)) return res.status(400).json({ message: 'Username taken' });
+  const newClient = { id: data.nextClientId++, fullname, address, phone, username, password, validId: validIdFile, selfie: selfieFile };
   data.clients.push(newClient);
   saveData(data);
   res.json({ message: 'Registration successful', client: newClient });
@@ -265,11 +190,11 @@ app.post('/clients/login', (req, res) => {
   const data = loadData();
   const client = data.clients.find(c => c.username === username && c.password === password);
   if (!client) return res.status(401).json({ message: 'Invalid username or password' });
-
   const token = jwt.sign({ clientId: client.id }, SECRET_KEY, { expiresIn: '12h' });
   res.json({ token, client });
 });
 
+// --- Client orders ---
 app.post('/clients/orders', auth, (req, res) => {
   const { pickup, dropoff, distance, fee, type, notes } = req.body;
   const clientId = req.user.clientId;
@@ -300,13 +225,15 @@ app.get('/clients/orders', auth, (req, res) => {
   res.json(clientOrders);
 });
 
-// --- SPA fallback ---
+// =======================
+// SPA fallback - LAST
+// =======================
 app.get('*', (req, res) => {
   const indexPath = path.join(frontEndDir, 'index.html');
   if (!fs.existsSync(indexPath)) return res.status(404).send('index.html not found');
   res.sendFile(indexPath);
 });
 
-// --- Start server ---
+// --- Start Server ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, '0.0.0.0', () => console.log(`✅ Server running on port ${PORT}`));
