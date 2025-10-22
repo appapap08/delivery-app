@@ -18,14 +18,108 @@
 />
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 <style>
-  /* Computed fields style */
+/* === Global Styles === */
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #ff7b00, #ff9500);
+  margin: 0;
+  padding: 30px 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.container {
+  width: 95%;
+  max-width: 700px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  padding: 30px 40px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+h2, h3 { color: #ff7b00; }
+
+input, select, button, #notes {
+  width: 100%;
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  border: 1px solid #ffcc80;
+  box-sizing: border-box;
+}
+
+button {
+  background: #ff7b00;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+button:hover { background: #ff9500; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+
+th, td {
+  border: 1px solid #ffcc80;
+  padding: 10px;
+  text-align: center;
+}
+
+th { background: #ffb74d; color: #fff; }
+
+.photo-cards {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.photo-card {
+  flex: 1;
+  min-width: 120px;
+  background: #ffa500;
+  color: #fff;
+  padding: 15px;
+  border-radius: 15px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.3s;
+  user-select: none;
+}
+
+.photo-card.selected {
+  box-shadow: 0 0 20px 5px rgba(255,255,255,0.6);
+  transform: scale(1.05);
+}
+
+.photo-card .icon { font-size: 2.5em; margin-bottom: 10px; }
+.photo-card p { margin: 5px 0; font-weight: 500; }
+.photo-card small { font-size: 0.8em; color: #fff; opacity: 0.9; }
+
+#map {
+  height: 250px;
+  width: 100%;
+  border-radius: 12px;
+  margin-bottom: 15px;
+}
+
 input.computed {
   background: linear-gradient(135deg, #ffecb3, #ffd180);
   border: 2px solid #ffa500;
   font-weight: 600;
   color: #d84315;
   text-align: center;
-  cursor: not-allowed; /* shows user can't type */
+  cursor: not-allowed;
   transition: all 0.3s ease;
 }
 
@@ -39,14 +133,14 @@ input.computed::placeholder {
   font-weight: 500;
   opacity: 0.8;
 }
-  #notes {
+
+#notes {
   width: 100%;
   padding: 10px;
   border: 2px solid #ffa500;
   border-radius: 8px;
   resize: vertical;
   font-size: 15px;
-  font-family: 'Poppins', sans-serif;
   background: #fff8f0;
   min-height: 60px;
   transition: all 0.2s ease;
@@ -59,72 +153,16 @@ input.computed::placeholder {
   background: #fff3e0;
 }
 
-  body {
-    font-family: 'Poppins', sans-serif;
-    background: linear-gradient(135deg, #ff7b00, #ff9500);
-    margin:0; padding:0;
-    display:flex; justify-content:center; align-items:flex-start;
-    min-height:100vh; padding-top:30px;
-  }
-  .container {
-    width:95%; max-width:700px;
-    background: rgba(255,255,255,0.95);
-    border-radius:20px;
-    padding:30px 40px;
-    box-shadow:0 8px 20px rgba(0,0,0,0.2);
-    position: relative;
-  }
-  h2,h3{color:#ff7b00;}
-  input, select, button {
-    width:100%; padding:10px; margin:6px 0;
-    border-radius:8px; border:1px solid #ffcc80;
-    box-sizing:border-box;
-  }
-  button {
-    background:#ff7b00; color:#fff; font-weight:600; cursor:pointer;
-    transition:0.3s;
-  }
-  button:hover { background:#ff9500; }
-  table {
-    width:100%; border-collapse:collapse; margin-top:12px;
-    table-layout: fixed; word-wrap: break-word;
-  }
-  th,td {
-    border:1px solid #ffcc80; padding:10px; text-align:center;
-  }
-  th { background:#ffb74d; color:#fff; }
-  .photo-cards { display:flex; gap:15px; flex-wrap:wrap; margin-bottom:15px; }
-  .photo-card {
-    flex:1; min-width:120px; background:#ffa500; color:#fff;
-    padding:15px; border-radius:15px; text-align:center;
-    cursor:pointer; transition: transform 0.2s, box-shadow 0.3s; user-select:none;
-  }
-  .photo-card.selected { box-shadow: 0 0 20px 5px rgba(255,255,255,0.6); transform: scale(1.05); }
-  .photo-card .icon { font-size:2.5em; margin-bottom:10px; }
-  .photo-card p { margin:5px 0; font-weight:500; }
-  .photo-card small { font-size:0.8em; color:#fff; opacity:0.9; }
-  #map { height:250px; width:100%; border-radius:12px; margin-bottom:15px; }
-  .suggestions {
-    position:absolute;
-    background:white;
-    border:1px solid #ccc;
-    width:95%;
-    z-index:1000;
-    display:none;
-    max-height:150px;
-    overflow-y:auto;
-  }
-  .suggestions div { padding:8px; cursor:pointer; }
-  /* === AUTOCOMPLETE DROPDOWN STYLE (Enhanced) === */
+/* === Suggestions Dropdown === */
 .suggestions {
   position: absolute;
-  background: #ff7b00; /* Bright orange background */
+  background: #ff7b00;
   color: white;
   border-radius: 12px;
   width: 95%;
   margin-top: 4px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-  z-index: 99999; /* Stays above all other elements */
+  z-index: 99999;
   display: none;
   max-height: 200px;
   overflow-y: auto;
@@ -140,26 +178,44 @@ input.computed::placeholder {
   transition: background 0.2s, transform 0.1s;
 }
 
-.suggestions div:hover {
-  background: rgba(255,255,255,0.2);
-  transform: scale(1.02);
-}
+.suggestions div:hover { background: rgba(255,255,255,0.2); transform: scale(1.02); }
+.suggestions div:last-child { border-bottom: none; }
 
-.suggestions div:last-child {
-  border-bottom: none;
-}
-
-/* Fade-in animation for smooth entry */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Optional: Slight dim background behind dropdown when active */
-input:focus + .suggestions {
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-}
+/* === File Upload Cards === */
+.file-card { display: flex; flex-direction: column; margin-bottom: 15px; }
+.file-card img { max-width: 100%; margin-top: 5px; border-radius: 8px; }
+.file-card button { margin-top: 5px; }
+
 </style>
+<style>
+  /* --- Existing styles above --- */
+
+  /* === Responsive adjustments for mobile screens === */
+  @media screen and (max-width: 600px) {
+    body { padding-top: 15px; }
+    .container { width: 95%; padding: 20px; }
+    input, select, button, #notes { font-size: 14px; padding: 8px; }
+    .photo-cards { flex-direction: column; gap: 10px; }
+    .photo-card { min-width: 100%; font-size: 14px; padding: 12px; }
+    .photo-card .icon { font-size: 2em; }
+    table th, table td { padding: 6px; font-size: 12px; }
+    #map { height: 200px; }
+    .suggestions { width: 90% !important; }
+  }
+
+  /* Mobile-friendly file upload cards */
+  @media screen and (max-width: 600px) {
+    .file-card { flex: 1 1 100%; margin-bottom: 10px; }
+    .file-card img { max-width: 100%; height: auto; margin-top: 5px; border-radius: 8px; }
+    .file-card button { width: 100%; margin-top: 5px; }
+  }
+</style>
+
 </head>
 <body>
 <div class="container">
