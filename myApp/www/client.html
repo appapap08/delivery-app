@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta charset="UTF-8">
 <link
   rel="stylesheet"
@@ -192,27 +193,101 @@ input.computed::placeholder {
 .file-card button { margin-top: 5px; }
 
 </style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
-  /* --- Existing styles above --- */
-
-  /* === Responsive adjustments for mobile screens === */
+  /* === Mobile Responsive Styles === */
   @media screen and (max-width: 600px) {
-    body { padding-top: 15px; }
-    .container { width: 95%; padding: 20px; }
-    input, select, button, #notes { font-size: 14px; padding: 8px; }
-    .photo-cards { flex-direction: column; gap: 10px; }
-    .photo-card { min-width: 100%; font-size: 14px; padding: 12px; }
-    .photo-card .icon { font-size: 2em; }
-    table th, table td { padding: 6px; font-size: 12px; }
-    #map { height: 200px; }
-    .suggestions { width: 90% !important; }
-  }
+    /* Body adjustments */
+    body {
+      padding-top: 15px;
+      font-size: 14px;
+    }
 
-  /* Mobile-friendly file upload cards */
-  @media screen and (max-width: 600px) {
-    .file-card { flex: 1 1 100%; margin-bottom: 10px; }
-    .file-card img { max-width: 100%; height: auto; margin-top: 5px; border-radius: 8px; }
-    .file-card button { width: 100%; margin-top: 5px; }
+    /* Container */
+    .container {
+      width: 95%;
+      max-width: 95%;
+      padding: 15px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    /* Inputs, selects, buttons, textarea */
+    input, select, button, #notes {
+      width: 100%;
+      font-size: 14px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+
+    /* Map */
+    #map {
+      width: 100%;
+      height: 200px;
+    }
+
+    /* Photo cards layout */
+    .photo-cards {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .photo-card {
+      min-width: 100%;
+      font-size: 14px;
+      padding: 12px;
+    }
+
+    .photo-card .icon {
+      font-size: 2em;
+    }
+
+    /* Tables */
+    table, th, td {
+      font-size: 12px;
+      padding: 6px;
+    }
+
+    /* Suggestions dropdown */
+    .suggestions {
+      width: 90% !important;
+      font-size: 14px;
+    }
+
+    /* File upload cards */
+    .file-card {
+      flex: 1 1 100%;
+      margin-bottom: 10px;
+    }
+
+    .file-card img {
+      max-width: 100%;
+      height: auto;
+      margin-top: 5px;
+      border-radius: 8px;
+    }
+
+    .file-card button {
+      width: 100%;
+      margin-top: 5px;
+    }
+
+    /* Passenger select box adjustments */
+    #passengerDiv select, #passengerDiv input {
+      font-size: 14px;
+      padding: 8px;
+    }
+
+    /* Order form padding */
+    #orderFormDiv {
+      padding: 10px;
+    }
+
+    /* Adjust h2 and h3 size */
+    h2, h3 {
+      font-size: 1.2em;
+    }
   }
 </style>
 
@@ -320,15 +395,27 @@ input.computed::placeholder {
 </div>
 
 </div>
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 <script>
 const API = "https://kabalen-backend1.onrender.com";
 let token='', clientId='', orderType='';
+// --- Add DOM references here ---
+const registerDiv = document.getElementById('registerDiv');
+const loginDiv = document.getElementById('loginDiv');
+const clientDashboard = document.getElementById('clientDashboard');
+const orderFormDiv = document.getElementById('orderFormDiv');
+const orderTypeTitle = document.getElementById('orderTypeTitle');
+const passengerDiv = document.getElementById('passengerDiv');
+const pickup = document.getElementById('pickup');
+const dropoff = document.getElementById('dropoff');
+const distance = document.getElementById('distance');
+const fee = document.getElementById('fee');
+const passengerCount = document.getElementById('passengerCount');
+
 let map, pickupMarker=null, dropoffMarker=null, mapInitialized=false;
 let geocoder;
 let routeControl = null;
+
 
 document.addEventListener('DOMContentLoaded',()=>{
   const savedToken = localStorage.getItem('token');
@@ -345,6 +432,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     loadClientOrders();
   }
 });
+
 
 function removeFile(type){
   if(type==='validId'){ validId.value=''; validIdPreview.src=''; validIdName.innerText=''; }
@@ -412,23 +500,33 @@ function hideOrderForm(){
   ['pickup','dropoff','distance','fee','passengerCount'].forEach(id=>document.getElementById(id).value='');
 }
 
-async function createClientOrder(){
-  const pickup=pickup.value.trim(), dropoff=dropoff.value.trim();
-  const distance=parseFloat(distance.value)||0, fee=parseFloat(fee.value)||0;
-  const passengers=parseInt(passengerCount.value)||1;
+async function createClientOrder() {
+  const pickup = pickup.value.trim();
+  const dropoff = dropoff.value.trim();
+  const distance = parseFloat(distance.value) || 0;
+  const fee = parseFloat(fee.value) || 0;
+  const passengers = parseInt(passengerCount.value) || 1;
   const notes = document.getElementById('notes').value.trim();
-  if(!pickup||!dropoff) return alert('Fill all fields');
-  const res=await fetch(`${API}/clients/orders`,{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},
-    body:JSON.stringify({pickup,dropoff,distance,fee,type:orderType,passengers})
+
+  if (!pickup || !dropoff) return alert('Fill all fields');
+
+  const res = await fetch(`${API}/clients/orders`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ pickup, dropoff, distance, fee, type: orderType, passengers, notes }) // <-- notes added
   });
-  const data=await res.json();
-  if(!res.ok) return alert(data.message||'Error placing order');
+
+  const data = await res.json();
+  if (!res.ok) return alert(data.message || 'Error placing order');
+
   alert('Order placed!');
   hideOrderForm();
   loadClientOrders();
 }
+
 
 async function loadClientOrders(){
   const res=await fetch(`${API}/clients/orders`,{headers:{'Authorization':'Bearer '+token}});
@@ -704,13 +802,25 @@ function setupAutocomplete(inputId, isPickup) {
           else
             window.pickupMarker = L.marker([lat, lon], { draggable: true })
               .addTo(window.map)
-              .on('dragend', window.onMarkerDrag);
+              .on('dragend', (e) => {
+    const latlng = e.target.getLatLng();
+    if (isPickup) updateAddress('pickup', latlng);
+    else updateAddress('dropoff', latlng);
+    updateDistanceFee();
+});
+
         } else {
           if (window.dropoffMarker) dropoffMarker.setLatLng([lat, lon]);
           else
             window.dropoffMarker = L.marker([lat, lon], { draggable: true })
               .addTo(window.map)
-              .on('dragend', window.onMarkerDrag);
+              .on('dragend', (e) => {
+    const latlng = e.target.getLatLng();
+    if (isPickup) updateAddress('pickup', latlng);
+    else updateAddress('dropoff', latlng);
+    updateDistanceFee();
+});
+
         }
         window.map.setView([lat, lon], 15);
         if (typeof window.updateDistanceFee === 'function') window.updateDistanceFee();
